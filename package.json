@@ -9,7 +9,9 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "deploy:test:media": "cdk deploy -c S3_IMAGE_BUCKET_NAME=test.media.adoptdontstop.com",
+    "deploy:prod:media": "cdk deploy -c S3_IMAGE_BUCKET_NAME=media.cdn.adoptdontstop"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",
