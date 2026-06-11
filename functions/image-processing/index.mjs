@@ -33,6 +33,9 @@ export const handler = async (event) => {
         originalImageBody = getOriginalImageCommandOutput.Body.transformToByteArray();
         contentType = getOriginalImageCommandOutput.ContentType;
     } catch (error) {
+        if (error.name === "NoSuchKey") {
+          return sendError(404, "The requested image does not exist", error);
+        }
         return sendError(500, 'Error downloading original image', error);
     }
     let transformedImage = Sharp(await originalImageBody, { failOn: 'none', animated: true });
@@ -89,9 +92,7 @@ export const handler = async (event) => {
                 Bucket: S3_TRANSFORMED_IMAGE_BUCKET,
                 Key: originalImagePath + '/' + operationsPrefix,
                 ContentType: contentType,
-                Metadata: {
-                    'cache-control': TRANSFORMED_IMAGE_CACHE_TTL,
-                },
+                CacheControl: TRANSFORMED_IMAGE_CACHE_TTL,
             })
             await s3Client.send(putImageCommand);
             timingLog = timingLog + ',img-upload;dur=' + parseInt(performance.now() - startTime);

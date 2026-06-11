@@ -1,0 +1,59 @@
+name: Deploy
+
+# Manual-only deploys to test or prod. Trigger from the Actions tab.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment to deploy
+        type: choice
+        default: test
+        options:
+          - test
+          - prod
+      aws_region:
+        description: AWS region to deploy to
+        type: string
+        default: eu-central-1
+
+# Required for OIDC: id-token lets the runner request a token to assume the AWS role.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    # Associates the run with a GitHub Environment of the same name. No approval
+    # rule today, but this lets you add required reviewers later, and scope the
+    # role-ARN secret per environment if test/prod ever diverge.
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # package-lock.json is gitignored, so npm ci is not usable here.
+      - name: Install dependencies
+        run: npm install
+
+      # The prebuild hook only runs before `build`, not before `cdk deploy`, so
+      # install the linux sharp binary into the Lambda asset explicitly.
+      - name: Build sharp for Lambda
+        run: npm run prebuild
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ inputs.aws_region }}
+
+      # Reuses the existing deploy:test:media / deploy:prod:media npm scripts.
+      # --require-approval never stops CDK from blocking on an IAM prompt in CI.
+      - name: Deploy
+        run: npm run deploy:${{ inputs.environment }}:media -- --require-approval never
