@@ -11,8 +11,8 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
-    "deploy:test:media": "cdk deploy -c S3_IMAGE_BUCKET_NAME=test.media.adoptdontstop.com",
-    "deploy:prod:media": "cdk deploy -c S3_IMAGE_BUCKET_NAME=media.cdn.adoptdontstop"
+    "deploy:test:media": "cdk deploy -c S3_IMAGE_BUCKET_NAME=test.media.adoptdontstop.com -c MAX_IMAGE_SIZE=15000000",
+    "deploy:prod:media": "cdk deploy -c S3_IMAGE_BUCKET_NAME=media.cdn.adoptdontstop -c MAX_IMAGE_SIZE=15000000"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",
