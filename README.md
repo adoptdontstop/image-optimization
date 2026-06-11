@@ -17,10 +17,12 @@ Note the following:
 * To prevent from unauthorized invocations of the Lambda function, CloudFront is configured with OAC to sign requests using sigV4 before sending them to invoke the Lambda service.
 
 ## Deploy the solution using CDK
-AWS CDK is an open-source software development framework used to define cloud infrastructure in code and provision it through AWS CloudFormation. Follow these steps in your command line to deploy the image optimization solution with CDK, using the region and account information configured in your AWS CLI. Note that you need to use a CLI on a x64 based processor (e.g. T2 EC2 instances).
+
+> [!NOTE]
+> This solution is using [sharp](https://github.com/lovell/sharp) library for image processing. Your local development environment and the image processing Lambda function environment may be using different CPU and OS architectures - for example, when you are on an M1 Mac, trying to build code for a Linux-based, x86 Lambda runtime. If necessary, the solution will automatically perform a [cross-platform](https://sharp.pixelplumbing.com/install#cross-platform) installation of all required dependencies. **Ensure your local npm version is 10.4.0 or later**, to correctly leverage npm flags for native dependency management and take advantage of Lambda function size optimizations.
 
 ```
-git clone https://github.com/aws-samples/image-optimization.git 
+git clone https://github.com/aws-samples/image-optimization.git
 cd image-optimization
 npm install
 cdk bootstrap
@@ -28,22 +30,22 @@ npm run build
 cdk deploy
 ```
 
-Note that the solution deploys the latest version of the Sharp library. If a new version has been released, and you'd like to updgrade to the new version (for ex to patch a [cve](https://github.com/lovell/sharp/issues/3798)), rebuild and redeploy using CDK.
-
 When the deployment is completed within minutes, the CDK output will include the domain name of the CloudFront distribution created for image optimization (ImageDeliveryDomain =YOURDISTRIBUTION.cloudfront.net). The stack will include an S3 bucket with sample images (OriginalImagesS3Bucket = YourS3BucketWithOriginalImagesGeneratedName). To verify that it is working properly, test the following optimized image URL https:// YOURDISTRIBUTION.cloudfront.net/images/rio/1.jpeg?format=auto&width=300.
 
 The stack can be deployed with the following parameters. 
 * **S3_IMAGE_BUCKET_NAME** Recommended for using an existing S3 bucket where your images are stored when deploying in production. Usage: cdk deploy -c S3_IMAGE_BUCKET_NAME=’YOUR_S3_BUCKET_NAME’. Without specifiying this parameter, the stack creates a new S3 bucket and sample images of Rio the dog ^^
-* **STORE_TRANSFORMED_IMAGES** Allows you to avoid temporary storage of transformed images, every image request is sent for transformation using Lambda upon cache miss in CloudFront.  Usage: cdk deploy -c STORE_TRANSFORMED_IMAGES=false. The default value of this paramter is true.
-* **S3_TRANSFORMED_IMAGE_EXPIRATION_DURATION** When STORE_TRANSFORMED_IMAGES is set to true, this paramter allows you to set the expiration time in days, of the stored transfomed images in S3. After this expiration time, objects are deleted to save storage cost. Usage: cdk deploy -c S3_TRANSFORMED_IMAGE_EXPIRATION_DURATION=10. The default value of this paramter is 90 days.
-* **S3_TRANSFORMED_IMAGE_CACHE_TTL** When STORE_TRANSFORMED_IMAGES is set to true, this paramter allows you to set a Cache-Control directive on transformed images. Usage: cdk deploy -c S3_TRANSFORMED_IMAGE_CACHE_TTL='max-age=3600'.  The default value of this paramter is 'max-age=31622400'.
+* **STORE_TRANSFORMED_IMAGES** Allows you to avoid temporary storage of transformed images, every image request is sent for transformation using Lambda upon cache miss in CloudFront.  Usage: cdk deploy -c STORE_TRANSFORMED_IMAGES=false. The default value of this parameter is true.
+* **S3_TRANSFORMED_IMAGE_EXPIRATION_DURATION** When STORE_TRANSFORMED_IMAGES is set to true, this parameter allows you to set the expiration time in days, of the stored transfomed images in S3. After this expiration time, objects are deleted to save storage cost. Usage: cdk deploy -c S3_TRANSFORMED_IMAGE_EXPIRATION_DURATION=10. The default value of this parameter is 90 days.
+* **S3_TRANSFORMED_IMAGE_CACHE_TTL** When STORE_TRANSFORMED_IMAGES is set to true, this parameter allows you to set a Cache-Control directive on transformed images. Usage: cdk deploy -c S3_TRANSFORMED_IMAGE_CACHE_TTL='max-age=3600'.  The default value of this parameter is 'max-age=31622400'.
 * **CLOUDFRONT_ORIGIN_SHIELD_REGION** Specify this parameter when you do not want the stack to automatically choose the Origin Shield region for you. Usage: cdk deploy -c CLOUDFRONT_ORIGIN_SHIELD_REGION=us-east-1. Default value is automatically selected based on the region of the stack.
 * **CLOUDFRONT_CORS_ENABLED** Specify this parameter if you want to allow/disallow other domains to serve images from your image delivery Cloudfront distribution.  Usage: cdk deploy -c CLOUDFRONT_CORS_ENABLED=false. Default value is set to true.
-* **LAMBDA_MEMORY** Speficy this parameter to tune the memory in MB of the Lambda function that processes images, with the goal of improving processing performance. Usage: cdk deploy -c LAMBDA_MEMORY=2000. Default value is 1500 MB.
-* **LAMBDA_TIMEOUT** Speficy this parameter to tune the timeout in seconds of the Lambda function that processes images. Usage: cdk deploy -c LAMBDA_TIMEOUT=10. Default value is 60 seconds.
-* **MAX_IMAGE_SIZE** Speficy this parameter to set a maximum request image size in bytes. If STORE_TRANSFORMED_IMAGES=false, requests resulting in images bigger than MAX_IMAGE_SIZE fail to 5xx error. Otherwise, Lambda transforms the image, uploads it to S3, then sends a redirect to the same image location on S3 to avoid hitting the Lambda output size limit. Usage: cdk deploy -c MAX_IMAGE_SIZE=200000. Default value is 4700000 bytes.
-* **DEPLOY_SAMPLE_WEBSITE** set this paramter to true if you want the stack to include another CloudFront distribution pointing to an S3 bucket, that you can use for static website hosting. This option is used in the initial solution [post](https://aws.amazon.com/blogs/networking-and-content-delivery/image-optimization-using-amazon-cloudfront-and-aws-lambda/)
+* **LAMBDA_MEMORY** Specify this parameter to tune the memory in MB of the Lambda function that processes images, with the goal of improving processing performance. Usage: cdk deploy -c LAMBDA_MEMORY=2000. Default value is 1500 MB.
+* **LAMBDA_TIMEOUT** Specify this parameter to tune the timeout in seconds of the Lambda function that processes images. Usage: cdk deploy -c LAMBDA_TIMEOUT=10. Default value is 60 seconds.
+* **MAX_IMAGE_SIZE** Specify this parameter to set a maximum request image size in bytes. If STORE_TRANSFORMED_IMAGES=false, requests resulting in images bigger than MAX_IMAGE_SIZE fail to 5xx error. Otherwise, Lambda transforms the image, uploads it to S3, then sends a redirect to the same image location on S3 to avoid hitting the Lambda output size limit. Usage: cdk deploy -c MAX_IMAGE_SIZE=200000. Default value is 4700000 bytes.
+* **DEPLOY_SAMPLE_WEBSITE** set this parameter to true if you want the stack to include another CloudFront distribution pointing to an S3 bucket, that you can use for static website hosting. This option is used in the initial solution [post](https://aws.amazon.com/blogs/networking-and-content-delivery/image-optimization-using-amazon-cloudfront-and-aws-lambda/)
 
+## Cost optimization
+You can optimize the cost of this solution according to your business needs by dialing up or down parameters like S3 object retention period or Lambda memory configuration, by changing S3 storage tier, by reconsidering the need for storing transformed images in S3, by using ARM based Lambda or AWS Lambda Managed Instances.
 
 ## Clean up resources
 

@@ -6,6 +6,7 @@ import { CfnDistribution } from "aws-cdk-lib/aws-cloudfront";
 import { Construct } from 'constructs';
 import { getOriginShieldRegion } from './origin-shield';
 import { createHash } from 'crypto';
+import { LogGroup } from 'aws-cdk-lib/aws-logs';
 
 // Stack Parameters
 
@@ -30,6 +31,7 @@ var DEPLOY_SAMPLE_WEBSITE = 'false';
 
 type ImageDeliveryCacheBehaviorConfig = {
   origin: any;
+  compress: any;
   viewerProtocolPolicy: any;
   cachePolicy: any;
   functionAssociations: any;
@@ -74,7 +76,7 @@ export class ImageOptimizationStack extends Stack {
         comment: 'image optimization - sample website',
         defaultRootObject: 'index.html',
         defaultBehavior: {
-          origin: new origins.S3Origin(sampleWebsiteBucket),
+          origin: origins.S3BucketOrigin.withOriginAccessControl(sampleWebsiteBucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         }
       });
@@ -150,13 +152,15 @@ export class ImageOptimizationStack extends Stack {
 
     // Create Lambda for image processing
     var lambdaProps = {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       handler: 'index.handler',
       code: lambda.Code.fromAsset('functions/image-processing'),
       timeout: Duration.seconds(parseInt(LAMBDA_TIMEOUT)),
       memorySize: parseInt(LAMBDA_MEMORY),
       environment: lambdaEnv,
-      logRetention: logs.RetentionDays.ONE_DAY,
+      logGroup: new logs.LogGroup(this, 'MyFunctionLogGroup', {
+          retention: logs.RetentionDays.ONE_DAY,
+        })
     };
     var imageProcessing = new lambda.Function(this, 'image-optimization', lambdaProps);
 
@@ -171,7 +175,7 @@ export class ImageOptimizationStack extends Stack {
 
     if (transformedImageBucket) {
       imageOrigin = new origins.OriginGroup({
-        primaryOrigin: new origins.S3Origin(transformedImageBucket, {
+        primaryOrigin: origins.S3BucketOrigin.withOriginAccessControl(transformedImageBucket, {
           originShieldRegion: CLOUDFRONT_ORIGIN_SHIELD_REGION,
         }),
         fallbackOrigin: new origins.HttpOrigin(imageProcessingDomainName, {
@@ -208,11 +212,11 @@ export class ImageOptimizationStack extends Stack {
     var imageDeliveryCacheBehaviorConfig: ImageDeliveryCacheBehaviorConfig = {
       origin: imageOrigin,
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      compress: false,
       cachePolicy: new cloudfront.CachePolicy(this, `ImageCachePolicy${this.node.addr}`, {
         defaultTtl: Duration.hours(24),
         maxTtl: Duration.days(365),
-        minTtl: Duration.seconds(0),
-        queryStringBehavior: cloudfront.CacheQueryStringBehavior.all()
+        minTtl: Duration.seconds(0)
       }),
       functionAssociations: [{
         eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
@@ -260,10 +264,16 @@ export class ImageOptimizationStack extends Stack {
     const cfnImageDelivery = imageDelivery.node.defaultChild as CfnDistribution;
     cfnImageDelivery.addPropertyOverride(`DistributionConfig.Origins.${(STORE_TRANSFORMED_IMAGES === 'true')?"1":"0"}.OriginAccessControlId`, oac.getAtt("Id"));
 
-    imageProcessing.addPermission("AllowCloudFrontServicePrincipal", {
+    imageProcessing.addPermission("AllowCloudFrontServicePrincipal1", {
       principal: new iam.ServicePrincipal("cloudfront.amazonaws.com"),
       action: "lambda:InvokeFunctionUrl",
       sourceArn: `arn:aws:cloudfront::${this.account}:distribution/${imageDelivery.distributionId}`
+    })
+
+    imageProcessing.addPermission("AllowCloudFrontServicePrincipal2", {
+      principal: new iam.ServicePrincipal("cloudfront.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      invokedViaFunctionUrl: true
     })
 
     new CfnOutput(this, 'ImageDeliveryDomain', {
